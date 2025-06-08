@@ -3,9 +3,9 @@ import pandas as pd
 import requests
 import json
 import time
-import random
 from datetime import datetime
 import numpy as np
+import hashlib
 
 # Cấu hình trang
 st.set_page_config(
@@ -14,7 +14,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# CSS tùy chỉnh - Modern & Professional
+# CSS tùy chỉnh - Modern & Professional with dual columns
 st.markdown("""
 <style>
     .main-header {
@@ -27,12 +27,21 @@ st.markdown("""
         box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
     }
     
-    .user-list-container {
+    .risk-column {
         background: white;
         border-radius: 15px;
         padding: 1.5rem;
         box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-        margin: 2rem 0;
+        margin: 1rem 0;
+        min-height: 400px;
+    }
+    
+    .high-risk-column {
+        border-left: 5px solid #e74c3c;
+    }
+    
+    .low-risk-column {
+        border-left: 5px solid #27ae60;
     }
     
     .user-card {
@@ -46,22 +55,21 @@ st.markdown("""
         position: relative;
         overflow: hidden;
         transition: all 0.3s ease;
-        cursor: pointer;
     }
     
     .user-card:hover {
-        transform: translateX(5px);
+        transform: translateY(-5px);
         box-shadow: 0 12px 30px rgba(0,0,0,0.15);
     }
     
-    .user-card::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        bottom: 0;
-        width: 4px;
-        background: linear-gradient(135deg, #667eea, #764ba2);
+    .high-risk-card {
+        border-left: 4px solid #e74c3c;
+        background: linear-gradient(145deg, #fff5f5, #fff);
+    }
+    
+    .low-risk-card {
+        border-left: 4px solid #27ae60;
+        background: linear-gradient(145deg, #f5fff5, #fff);
     }
     
     @keyframes slideInFromLeft {
@@ -73,19 +81,6 @@ st.markdown("""
             opacity: 1;
             transform: translateX(0);
         }
-    }
-    
-    .user-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 1rem;
-    }
-    
-    .user-info {
-        display: flex;
-        align-items: center;
-        flex: 1;
     }
     
     .user-avatar {
@@ -103,39 +98,34 @@ st.markdown("""
         box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
     }
     
-    .user-details h3 {
-        margin: 0;
-        color: #2c3e50;
-        font-size: 1.3rem;
-        font-weight: 600;
+    .high-risk-avatar {
+        background: linear-gradient(135deg, #e74c3c, #c0392b);
     }
     
-    .user-meta {
-        color: #7f8c8d;
-        font-size: 0.9rem;
-        margin-top: 0.3rem;
+    .low-risk-avatar {
+        background: linear-gradient(135deg, #27ae60, #2ecc71);
     }
     
-    .risk-badge-mini-high {
+    .risk-badge-high {
         background: linear-gradient(135deg, #e74c3c, #c0392b);
         color: white;
-        padding: 6px 15px;
+        padding: 8px 16px;
         border-radius: 20px;
         font-weight: bold;
-        font-size: 0.8rem;
+        font-size: 0.9rem;
         display: inline-flex;
         align-items: center;
         box-shadow: 0 3px 10px rgba(231, 76, 60, 0.3);
         animation: pulse 2s infinite;
     }
     
-    .risk-badge-mini-low {
+    .risk-badge-low {
         background: linear-gradient(135deg, #27ae60, #2ecc71);
         color: white;
-        padding: 6px 15px;
+        padding: 8px 16px;
         border-radius: 20px;
         font-weight: bold;
-        font-size: 0.8rem;
+        font-size: 0.9rem;
         display: inline-flex;
         align-items: center;
         box-shadow: 0 3px 10px rgba(39, 174, 96, 0.3);
@@ -145,39 +135,6 @@ st.markdown("""
         0% { transform: scale(1); }
         50% { transform: scale(1.05); }
         100% { transform: scale(1); }
-    }
-    
-    .posts-count {
-        background: #667eea;
-        color: white;
-        padding: 4px 10px;
-        border-radius: 12px;
-        font-size: 0.8rem;
-        font-weight: 600;
-        margin-left: 1rem;
-    }
-    
-    .click-hint {
-        color: #667eea;
-        font-size: 0.8rem;
-        font-style: italic;
-        margin-top: 0.5rem;
-        text-align: right;
-    }
-    
-    .loading-new-user {
-        background: linear-gradient(145deg, #f8f9ff, #ffffff);
-        padding: 1.5rem;
-        border-radius: 15px;
-        text-align: center;
-        border: 2px dashed #667eea;
-        margin: 1rem 0;
-        animation: loadingPulse 1.5s ease-in-out infinite;
-    }
-    
-    @keyframes loadingPulse {
-        0%, 100% { opacity: 0.7; }
-        50% { opacity: 1; }
     }
     
     .streaming-indicator {
@@ -241,14 +198,6 @@ st.markdown("""
         font-weight: 500;
     }
     
-    .detailed-modal {
-        background: white;
-        border-radius: 20px;
-        padding: 2rem;
-        max-height: 80vh;
-        overflow-y: auto;
-    }
-    
     .post-container {
         background: #f8f9ff;
         border: 1px solid #e8e8e8;
@@ -287,6 +236,33 @@ st.markdown("""
         color: #2c3e50;
         margin: 1rem 0;
     }
+    
+    .column-header {
+        text-align: center;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border-radius: 10px;
+        font-weight: bold;
+        font-size: 1.2rem;
+    }
+    
+    .high-risk-header {
+        background: linear-gradient(135deg, #e74c3c, #c0392b);
+        color: white;
+    }
+    
+    .low-risk-header {
+        background: linear-gradient(135deg, #27ae60, #2ecc71);
+        color: white;
+    }
+    
+    .masked-username {
+        font-family: monospace;
+        background: #f0f0f0;
+        padding: 2px 6px;
+        border-radius: 4px;
+        color: #666;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -298,123 +274,153 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# Utility function to mask usernames for privacy
+def mask_username(username):
+    """Mask username for privacy protection using consistent hashing"""
+    if not username or len(username) < 3:
+        return "User_***"
+    
+    # Create a consistent hash-based mask
+    hash_value = hashlib.md5(username.encode()).hexdigest()[:6]
+    return f"User_{hash_value}"
+
 # Hàm tải dữ liệu
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=30)  # Reduced cache time for live updates
 def load_data():
     try:
-        response = requests.get("http://localhost:5000/view_user_history")
+        response = requests.get("http://localhost:5000/view_user_history", timeout=10)
         if response.status_code == 200:
             data = response.json()
-            return pd.DataFrame(data['data'])
+            if data['status'] == 'success':
+                return data['data']
+            else:
+                st.error(f"API Error: {data['message']}")
+                return []
         else:
-            return load_sample_data()
+            st.error(f"HTTP Error: {response.status_code}")
+            return []
     except Exception as e:
-        return load_sample_data()
+        st.error(f"Connection Error: {str(e)}")
+        return []
 
-def load_sample_data():
-    """Dữ liệu mẫu từ file đã cung cấp"""
-    sample_data = [
-        {
-            "post_text": "Sao cuộc sống chán z v momm",
-            "timestamp": "26/05/2025 11:13",
-            "url": "https://www.threads.net/@_tha.vwu/post/DKGlvVaSaoj",
-            "username": "_tha.vwu"
-        },
-        {
-            "post_text": '"Nếu không có ai đối xử ngọt ngào với bạn, bạn vẫn có thể tự đối xử ngọt ngào với bản thân mình". "Love yourself" Yêu bản thân.',
-            "timestamp": "01/07/2024 22:14",
-            "url": "https://www.threads.net/@_nhw.taw_/post/C84n3NzS1iV",
-            "username": "_nhw.taw_"
-        },
-        {
-            "post_text": '"Cuối cùng rồi sẽ có một ngày bạn trở nên bình tĩnh. Giống như người ngoài cuộc, nhìn lại những câu chuyện xưa cũ của chính mình rồi lắc đầu cười trong vô thức".',
-            "timestamp": "29/06/2024 22:47",
-            "url": "https://www.threads.net/@_nhw.taw_/post/C8ziDHnSR2H",
-            "username": "_nhw.taw_"
-        },
-        {
-            "post_text": "Best seller nhà e thì cứ tự tin là pizza với gà sốt . Ngoài ra các món khác thuộc top Á hậu thôi.",
-            "timestamp": "31/05/2025 12:41",
-            "url": "https://www.threads.net/@nhungdua.6/post/DKTnwxDTLJT",
-            "username": "nhungdua.6"
-        },
-        {
-            "post_text": "Phải trải qua sóng gió, mới trân trọng những tháng ngày bình yên..",
-            "timestamp": "19/06/2024 14:02",
-            "url": "https://www.threads.net/@_nhw.taw_/post/C8Y1-4_yv5l",
-            "username": "_nhw.taw_"
-        },
-        {
-            "post_text": "Mệt mỏi quá, không biết còn bao lâu nữa mới hết.",
-            "timestamp": "15/06/2024 20:30",
-            "url": "https://www.threads.net/@duanbbo/post/C8X1234",
-            "username": "duanbbo"
-        },
-        {
-            "post_text": "Đêm nay lại thức trắng, tâm trạng không ổn lắm.",
-            "timestamp": "12/06/2024 03:15",
-            "url": "https://www.threads.net/@_barelavvel_/post/C8W5678",
-            "username": "_barelavvel_"
-        },
-        {
-            "post_text": "Cảm giác như không ai hiểu mình, thật sự rất cô đơn.",
-            "timestamp": "10/06/2024 22:45",
-            "url": "https://www.threads.net/@lalucifer.666/post/C8V9012",
-            "username": "lalucifer.666"
-        }
-    ]
-    return pd.DataFrame(sample_data)
-
-def analyze_suicide_risk(posts_text):
-    """Simulate AI analysis based on post content"""
-    # Keywords that might indicate higher risk
-    high_risk_keywords = ['chán', 'mệt mỏi', 'cô đơn', 'không ai hiểu', 'thức trắng', 'tâm trạng không ổn']
+def display_user_card(user_data, container):
+    """Display user information card"""
+    # Get original username and create masked version for display
+    original_username = user_data.get('username', 'Unknown')
+    masked_username = mask_username(original_username)
     
-    # Check if any high-risk keywords appear in posts
-    all_text = ' '.join(posts_text).lower()
-    risk_score = sum(1 for keyword in high_risk_keywords if keyword in all_text)
+    suicide_risk = user_data.get('suicide_risk', 0)
+    risk_score = user_data.get('risk_score', 0)
+    stats = user_data.get('stats', {})
+    main_posts = user_data.get('main_posts', [])
+    detailed_posts = user_data.get('detailed_posts', [])
     
-    # Higher chance of risk if more keywords found
-    if risk_score >= 2:
-        return random.choices([0, 1], weights=[30, 70])[0]  # 70% chance of risk
-    elif risk_score == 1:
-        return random.choices([0, 1], weights=[60, 40])[0]  # 40% chance of risk
+    # Risk styling
+    if suicide_risk == 1:
+        risk_color = "#ff4757"
+        risk_label = "HIGH RISK"
+        risk_icon = "⚠️"
+        card_border = "border: 2px solid #ff4757;"
     else:
-        return random.choices([0, 1], weights=[85, 15])[0]  # 15% chance of risk
-
-def get_user_stats(df, username):
-    """Lấy thống kê của user"""
-    user_posts = df[df['username'] == username]
+        risk_color = "#2ed573"
+        risk_label = "LOW RISK"
+        risk_icon = "✅"
+        card_border = "border: 2px solid #2ed573;"
     
-    try:
-        user_posts['timestamp_dt'] = pd.to_datetime(user_posts['timestamp'], format='%d/%m/%Y %H:%M')
-        first_post = user_posts['timestamp_dt'].min().strftime('%d/%m/%Y %H:%M')
-        last_post = user_posts['timestamp_dt'].max().strftime('%d/%m/%Y %H:%M')
-    except:
-        first_post = user_posts['timestamp'].iloc[0] if len(user_posts) > 0 else "N/A"
-        last_post = user_posts['timestamp'].iloc[-1] if len(user_posts) > 0 else "N/A"
-    
-    return {
-        'total_posts': len(user_posts),
-        'first_post': first_post,
-        'last_post': last_post,
-        'posts': user_posts['post_text'].tolist(),
-        'timestamps': user_posts['timestamp'].tolist(),
-        'urls': user_posts['url'].tolist()
-    }
+    # Create expandable user section using MASKED USERNAME
+    with container.expander(f"{risk_icon} {masked_username} - {risk_label}", expanded=False):
+        # User info header with MASKED USERNAME
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, {risk_color}20, {risk_color}10); 
+                   padding: 1.5rem; border-radius: 15px; margin-bottom: 1rem; {card_border}">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h3 style="color: {risk_color}; margin: 0;">{masked_username}</h3>
+                    <p style="margin: 0.5rem 0; color: #666;">
+                        📊 Risk Score: <strong>{risk_score:.2f}</strong> | 
+                        📝 Main Posts: <strong>{stats.get('total_main_posts', 0)}</strong> | 
+                        🔍 Detailed Posts: <strong>{stats.get('total_detailed_posts', 0)}</strong>
+                    </p>
+                </div>
+                <div style="text-align: center;">
+                    <div style="background: {risk_color}; color: white; padding: 0.5rem 1rem; 
+                               border-radius: 20px; font-weight: bold; font-size: 0.9rem;">
+                        {risk_label}
+                    </div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Main Posts Section (Always visible - from main_posts.csv)
+        if main_posts:
+            st.markdown("### 📝 Main Posts (from main_posts.csv)")
+            for i, post in enumerate(main_posts):
+                # Mask username in post display as well
+                display_username = mask_username(post.get('username', original_username))
+                
+                label = post.get('label', 0)
+                label_color = "#ff4757" if label == 1 else "#2ed573"
+                label_text = "HIGH RISK" if label == 1 else "LOW RISK"
+                
+                st.markdown(f"""
+                <div style="background: #f8f9fa; padding: 1rem; border-radius: 10px; 
+                           margin: 0.5rem 0; border-left: 4px solid {label_color};">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <strong style="color: #333;">@{display_username}</strong>
+                        <span style="background: {label_color}; color: white; padding: 0.2rem 0.5rem; 
+                                   border-radius: 10px; font-size: 0.8rem;">{label_text}</span>
+                    </div>
+                    <p style="margin: 0.5rem 0; color: #555;">{post.get('text', 'N/A')}</p>
+                    <small style="color: #888;">
+                        🕒 {post.get('timestamp', 'N/A')} | 
+                        🏷️ {post.get('symptom_group', 'N/A')} | 
+                        🔗 <a href="{post.get('url', '#')}" target="_blank">View Post</a>
+                    </small>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        # View Details Button
+        if detailed_posts:
+            if st.button(f"👁️ View Details ({len(detailed_posts)} posts)", 
+                        key=f"details_{original_username}", 
+                        help="Show detailed posts from user history"):
+                
+                st.markdown("### 🔍 Detailed Posts (from all_users_history_data.jsonl)")
+                
+                # Display detailed posts in a container
+                with st.container():
+                    for i, detail_post in enumerate(detailed_posts):
+                        st.markdown(f"""
+                        <div style="background: #fff3cd; padding: 1rem; border-radius: 10px; 
+                                   margin: 0.5rem 0; border-left: 4px solid #ffc107;">
+                            <div style="margin-bottom: 0.5rem;">
+                                <strong style="color: #333;">@{masked_username}</strong>
+                            </div>
+                            <p style="margin: 0.5rem 0; color: #555;">{detail_post.get('post_text', 'N/A')}</p>
+                            <small style="color: #888;">
+                                🕒 {detail_post.get('timestamp', 'N/A')} | 
+                                🔗 <a href="{detail_post.get('url', '#')}" target="_blank">View Post</a>
+                            </small>
+                        </div>
+                        """, unsafe_allow_html=True)
+        else:
+            st.info("📝 No detailed posts available for this user")
 
 # Load data
-df = load_data()
+user_data_list = load_data()
 
-if df is not None and not df.empty:
+if user_data_list and len(user_data_list) > 0:
     # Khởi tạo session state
     if 'loaded_users' not in st.session_state:
         st.session_state.loaded_users = []
         st.session_state.streaming_started = False
         st.session_state.streaming_completed = False
         st.session_state.current_loading_index = 0
-        st.session_state.all_users = df['username'].unique().tolist()
+        st.session_state.all_users = user_data_list
         st.session_state.show_user_details = {}
+        st.session_state.high_risk_users = []
+        st.session_state.low_risk_users = []
     
     users = st.session_state.all_users
     
@@ -431,6 +437,8 @@ if df is not None and not df.empty:
             st.session_state.current_loading_index = 0
             st.session_state.streaming_completed = False
             st.session_state.show_user_details = {}
+            st.session_state.high_risk_users = []
+            st.session_state.low_risk_users = []
             st.rerun()
     
     with col3:
@@ -440,15 +448,20 @@ if df is not None and not df.empty:
             st.session_state.streaming_completed = False
             st.session_state.current_loading_index = 0
             st.session_state.show_user_details = {}
+            st.session_state.high_risk_users = []
+            st.session_state.low_risk_users = []
             st.rerun()
     
     # Statistics Overview
+    total_users = len(users)
     high_risk_count = len([u for u in st.session_state.loaded_users if u.get('suicide_risk') == 1])
+    low_risk_count = len([u for u in st.session_state.loaded_users if u.get('suicide_risk') == 0])
+    total_main_posts = sum([len(u.get('main_posts', [])) for u in users])
     
     st.markdown(f"""
     <div class="stats-grid">
         <div class="stat-card">
-            <span class="stat-number">{len(users)}</span>
+            <span class="stat-number">{total_users}</span>
             <div class="stat-label">Tổng số người dùng</div>
         </div>
         <div class="stat-card">
@@ -456,12 +469,12 @@ if df is not None and not df.empty:
             <div class="stat-label">Đã phân tích</div>
         </div>
         <div class="stat-card">
-            <span class="stat-number">{len(df)}</span>
-            <div class="stat-label">Tổng bài đăng</div>
+            <span class="stat-number" style="color: #e74c3c;">{high_risk_count}</span>
+            <div class="stat-label">Nguy cơ cao</div>
         </div>
         <div class="stat-card">
-            <span class="stat-number">{high_risk_count}</span>
-            <div class="stat-label">Có nguy cơ cao</div>
+            <span class="stat-number" style="color: #27ae60;">{low_risk_count}</span>
+            <div class="stat-label">Nguy cơ thấp</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -471,154 +484,98 @@ if df is not None and not df.empty:
         progress = len(st.session_state.loaded_users) / len(users)
         st.progress(progress, text=f"Streaming: {len(st.session_state.loaded_users)}/{len(users)} người dùng ({progress*100:.1f}%)")
     
-    # Main Streaming Area
+    # Main Streaming Area with Dual Columns
     st.markdown("## 📊 Live User Analysis Stream")
     
-    user_list_container = st.container()
+    # Create two columns for high risk and low risk users
+    col_high, col_low = st.columns(2)
     
-    with user_list_container:
-        # Display loaded users
-        for i, user_data in enumerate(st.session_state.loaded_users):
-            username = user_data['username']
-            suicide_risk = user_data['suicide_risk']
-            stats = user_data['stats']
-            
-            # Risk badge
-            if suicide_risk == 1:
-                risk_badge = '<div class="risk-badge-mini-high">🚨 HIGH RISK</div>'
-            else:
-                risk_badge = '<div class="risk-badge-mini-low">✅ LOW RISK</div>'
-            
-            # User card with click functionality
-            user_initial = username[0].upper() if username else "U"
-            
-            # Create expandable section for each user
-            with st.expander(f"👤 @{username} - {stats['total_posts']} bài đăng", expanded=False):
-                col1, col2 = st.columns([3, 1])
-                
-                with col1:
-                    st.markdown(f"""
-                    <div style="padding: 1rem 0;">
-                        <div style="display: flex; align-items: center; margin-bottom: 1rem;">
-                            <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #667eea, #764ba2); 
-                                      border-radius: 50%; display: flex; align-items: center; justify-content: center; 
-                                      color: white; font-size: 1.5rem; font-weight: bold; margin-right: 1rem;">
-                                {user_initial}
-                            </div>
-                            <div>
-                                <h3 style="margin: 0; color: #2c3e50;">@{username}</h3>
-                                <p style="margin: 0.5rem 0; color: #7f8c8d;">
-                                    📊 {stats['total_posts']} bài đăng | 📅 {stats['first_post']} - {stats['last_post']}
-                                </p>
-                            </div>
-                        </div>
-                        {risk_badge}
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col2:
-                    if st.button(f"📝 Xem chi tiết", key=f"detail_{username}_{i}"):
-                        st.session_state.show_user_details[username] = not st.session_state.show_user_details.get(username, False)
-                        st.rerun()
-                
-                # Show detailed posts if requested
-                if st.session_state.show_user_details.get(username, False):
-                    st.markdown("### 📝 Chi tiết bài đăng")
-                    
-                    for j, (post, timestamp, url) in enumerate(zip(stats['posts'], stats['timestamps'], stats['urls'])):
-                        st.markdown(f"""
-                        <div class="post-container">
-                            <div class="post-header">
-                                <span class="post-number">Bài #{j+1}</span>
-                                <span class="post-timestamp">📅 {timestamp}</span>
-                            </div>
-                            <div class="post-content">"{post}"</div>
-                            <div style="text-align: right; margin-top: 1rem;">
-                                <a href="{url}" target="_blank" style="color: #667eea; text-decoration: none; font-weight: 500;">
-                                    🔗 Xem bài gốc →
-                                </a>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
+    with col_high:
+        st.markdown("""
+        <div class="column-header high-risk-header">
+            🚨 NGƯỜI DÙNG CÓ NGUY CƠ CAO
+        </div>
+        """, unsafe_allow_html=True)
         
-        # Streaming logic
-        if st.session_state.streaming_started and not st.session_state.streaming_completed:
-            if st.session_state.current_loading_index < len(users):
-                # Show loading indicator for next user
-                st.markdown("""
-                <div class="loading-new-user">
-                    <div class="streaming-indicator">
-                        🔍 Đang phân tích người dùng tiếp theo
-                        <div class="loading-dots">
-                            <span></span>
-                            <span></span>
-                            <span></span>
-                        </div>
+        high_risk_container = st.container()
+        
+        with high_risk_container:
+            if st.session_state.high_risk_users:
+                for user_data in st.session_state.high_risk_users:
+                    display_user_card(user_data, col_high)
+            else:
+                st.info("Chưa có người dùng nguy cơ cao được phát hiện")
+    
+    with col_low:
+        st.markdown("""
+        <div class="column-header low-risk-header">
+            ✅ NGƯỜI DÙNG NGUY CƠ THẤP
+        </div>
+        """, unsafe_allow_html=True)
+        
+        low_risk_container = st.container()
+        
+        with low_risk_container:
+            if st.session_state.low_risk_users:
+                for user_data in st.session_state.low_risk_users:
+                    display_user_card(user_data, col_low)
+            else:
+                st.info("Chưa có người dùng nguy cơ thấp được phát hiện")
+    
+    # Streaming logic
+    if st.session_state.streaming_started and not st.session_state.streaming_completed:
+        if st.session_state.current_loading_index < len(users):
+            # Show loading indicator
+            st.markdown("""
+            <div style="text-align: center; padding: 2rem; background: #f8f9ff; border-radius: 15px; margin: 1rem 0;">
+                <div class="streaming-indicator">
+                    🔍 Đang phân tích người dùng tiếp theo
+                    <div class="loading-dots">
+                        <span></span>
+                        <span></span>
+                        <span></span>
                     </div>
                 </div>
-                """, unsafe_allow_html=True)
-                
-                # Auto-load next user after delay
-                time.sleep(2)  # Streaming delay
-                
-                current_username = users[st.session_state.current_loading_index]
-                user_stats = get_user_stats(df, current_username)
-                suicide_risk = analyze_suicide_risk(user_stats['posts'])
-                
-                # Add user to loaded list
-                st.session_state.loaded_users.append({
-                    'username': current_username,
-                    'suicide_risk': suicide_risk,
-                    'stats': user_stats
-                })
-                
-                st.session_state.current_loading_index += 1
-                
-                # Check if completed
-                if st.session_state.current_loading_index >= len(users):
-                    st.session_state.streaming_completed = True
-                
-                st.rerun()
-        
-        elif st.session_state.streaming_completed:
-            # Completion message
-            st.markdown("""
-            <div style="background: linear-gradient(135deg, #2ecc71, #27ae60); color: white; 
-                       padding: 1.5rem 2rem; border-radius: 20px; text-align: center; 
-                       margin: 2rem 0; box-shadow: 0 8px 25px rgba(46, 204, 113, 0.3);">
-                <h3>🎉 Stream hoàn tất!</h3>
-                <p>Đã phân tích xong tất cả {len(users)} người dùng</p>
             </div>
             """, unsafe_allow_html=True)
             
-            # Final summary
-            high_risk_users = [u for u in st.session_state.loaded_users if u['suicide_risk'] == 1]
-            low_risk_users = [u for u in st.session_state.loaded_users if u['suicide_risk'] == 0]
+            # Auto-load next user after delay
+            time.sleep(2)  # Streaming delay
             
-            if high_risk_users:
-                st.markdown("### 🚨 Tổng kết người dùng có nguy cơ cao:")
-                for user in high_risk_users:
-                    st.error(f"⚠️ @{user['username']} - {user['stats']['total_posts']} bài đăng")
+            current_user_data = users[st.session_state.current_loading_index]
             
-            if st.session_state.loaded_users:
-                risk_rate = (len(high_risk_users) / len(st.session_state.loaded_users)) * 100
-                st.metric(
-                    "📈 Tỷ lệ nguy cơ tổng thể", 
-                    f"{risk_rate:.1f}%",
-                    delta=f"{len(high_risk_users)} / {len(st.session_state.loaded_users)} người dùng"
-                )
+            # Add user to loaded list
+            st.session_state.loaded_users.append(current_user_data)
+            
+            # Categorize user based on risk
+            if current_user_data.get('suicide_risk') == 1:
+                st.session_state.high_risk_users.append(current_user_data)
+            else:
+                st.session_state.low_risk_users.append(current_user_data)
+            
+            st.session_state.current_loading_index += 1
+            
+            # Check if completed
+            if st.session_state.current_loading_index >= len(users):
+                st.session_state.streaming_completed = True
+            
+            st.rerun()
+    
+    elif st.session_state.streaming_completed:
+        # Completion message
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #2ecc71, #27ae60); color: white; 
+                   padding: 1.5rem 2rem; border-radius: 20px; text-align: center; 
+                   margin: 2rem 0; box-shadow: 0 8px 25px rgba(46, 204, 113, 0.3);">
+            <h3>🎉 Stream hoàn tất!</h3>
+            <p>Đã phân tích xong tất cả {len(users)} người dùng</p>
+            <p>Phát hiện {len(st.session_state.high_risk_users)} người dùng có nguy cơ cao và {len(st.session_state.low_risk_users)} người dùng nguy cơ thấp</p>
+        </div>
+        """, unsafe_allow_html=True)
 
 else:
-    st.error("❌ Không thể tải dữ liệu từ API")
-    st.info("💡 Đảm bảo server Flask đang chạy tại http://localhost:5000")
+    st.error("Không thể tải dữ liệu. Vui lòng kiểm tra:")
+    st.write("1. Flask server đang chạy trên localhost:5000")
+    st.write("2. File data/user_his.csv tồn tại")
+    st.write("3. API /view_user_history hoạt động bình thường")
 
-# Footer
-st.markdown("---")
-st.markdown("""
-<div style="text-align: center; color: #666; padding: 2rem; background: #f8f9ff; border-radius: 15px; margin-top: 2rem;">
-    <h4>⚠️ Lưu ý quan trọng</h4>
-    <p>Đây là hệ thống nghiên cứu mô phỏng cho mục đích học thuật và phát triển công nghệ.</p>
-    <p>Kết quả phân tích được tạo bởi thuật toán mô phỏng, không phải AI thực tế.</p>
-    <p><strong>Trong thực tế, việc phát hiện ý định tự sát cần sự can thiệp của chuyên gia tâm lý.</strong></p>
-</div>
-""", unsafe_allow_html=True)

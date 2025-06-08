@@ -6,9 +6,14 @@ import json
 import csv
 import traceback
 import subprocess
+import hashlib
+import time
+import sys
 
 app = Flask(__name__)
 
+# Define DATA_DIR constant
+DATA_DIR = 'data'
 
 # Store task status
 task_status = {}
@@ -264,19 +269,25 @@ def start_users_crawl():
                 "message": "Filtered posts file is empty"
             })
         
-        # Get first 7 unique users
-        unique_users = df['username'].dropna().unique()[:7]
+        # Get unique users with None/empty checks
+        unique_users = df['username'].dropna().unique()
         
-        if len(unique_users) == 0:
+        # Filter out None, empty, or invalid usernames
+        valid_usernames = []
+        for username in unique_users:
+            if username and isinstance(username, str) and username.strip():
+                valid_usernames.append(username.strip())
+        
+        if len(valid_usernames) == 0:
             return jsonify({
                 "status": "error",
                 "message": "No valid usernames found in filtered posts"
             })
         
-        print(f"[DEBUG] Looking for {len(unique_users)} users in existing data: {list(unique_users)}")
+        print(f"[DEBUG] Looking for {len(valid_usernames)} valid users in existing data: {valid_usernames}")
         
         # Use existing data instead of crawling
-        result = get_users_from_existing_data(list(unique_users))
+        result = get_users_from_existing_data(valid_usernames)
         
         return jsonify(result)
         
@@ -319,28 +330,46 @@ def get_users_from_existing_data(usernames):
         try:
             with open(existing_data_file, 'r', encoding='utf-8') as f:
                 for line_num, line in enumerate(f, 1):
+                    # Handle None or empty lines
+                    if not line or line is None:
+                        continue
+                        
                     line = line.strip()
-                    if not line:  # Skip empty lines
+                    if not line:  # Skip empty lines after stripping
                         continue
                         
                     try:
                         user_data = json.loads(line)
                         line_count += 1
                         
-                        # Handle different possible data structures
+                        # Handle different possible data structures with None checks
                         username = None
                         if isinstance(user_data, dict):
-                            username = user_data.get('username') or user_data.get('user_id') or user_data.get('name')
+                            # Safely get username with None checks
+                            username = user_data.get('username')
+                            if not username:
+                                username = user_data.get('user_id')
+                            if not username:
+                                username = user_data.get('name')
+                            
+                            # Ensure username is a string and not None/empty
+                            if username and isinstance(username, str) and username.strip():
+                                username = username.strip()
+                            else:
+                                username = None
                         
                         if username:
                             existing_users[username] = user_data
                             print(f"[DEBUG] Loaded user: {username}")
                         else:
-                            print(f"[DEBUG] Line {line_num}: No username found in data: {str(user_data)[:100]}...")
+                            print(f"[DEBUG] Line {line_num}: No valid username found in data")
                             
                     except json.JSONDecodeError as e:
                         print(f"[DEBUG] JSON decode error on line {line_num}: {e}")
-                        print(f"[DEBUG] Line content: {line[:100]}...")
+                        print(f"[DEBUG] Line content: {line[:100] if line else 'None'}...")
+                        continue
+                    except Exception as e:
+                        print(f"[DEBUG] Unexpected error on line {line_num}: {e}")
                         continue
                         
         except Exception as e:
@@ -361,16 +390,21 @@ def get_users_from_existing_data(usernames):
                 "data": None
             }
         
-        # Filter for requested users
+        # Filter for requested users with None checks
         for username in usernames:
+            if not username or not isinstance(username, str):
+                print(f"[DEBUG] Skipping invalid username: {username}")
+                continue
+                
+            username = username.strip()
             if username in existing_users:
                 user_data = existing_users[username]
                 found_users.append(user_data)
                 
-                # Count posts/threads - handle different data structures
+                # Count posts/threads - handle different data structures with None checks
                 threads = []
                 if isinstance(user_data, dict):
-                    threads = user_data.get('threads', user_data.get('posts', user_data.get('data', [])))
+                    threads = user_data.get('threads') or user_data.get('posts') or user_data.get('data') or []
                 
                 if isinstance(threads, list):
                     total_posts += len(threads)
@@ -404,38 +438,68 @@ def get_users_from_existing_data(usernames):
         
         posts_saved = 0
         
-        with open(csv_file, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            writer.writerow(['username', 'post_text', 'timestamp', 'url', 'crawl_date'])
-            
-            for user_data in found_users:
-                username = user_data.get('username', user_data.get('user_id', ''))
+        try:
+            with open(csv_file, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(['username', 'post_text', 'timestamp', 'url', 'crawl_date'])
                 
-                # Handle different thread data structures
-                threads = user_data.get('threads', user_data.get('posts', user_data.get('data', [])))
-                
-                if isinstance(threads, list):
-                    for thread in threads:
-                        if isinstance(thread, dict):
-                            post_text = thread.get('text', thread.get('content', '')).strip()
-                            timestamp = thread.get('published_on', thread.get('timestamp', ''))
-                            post_url = thread.get('url', thread.get('link', ''))
-                        else:
-                            post_text = str(thread).strip() if thread else ''
-                            timestamp = ''
-                            post_url = ''
-                        
-                        crawl_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        
-                        if post_text:
-                            writer.writerow([
-                                username,
-                                post_text,
-                                timestamp,
-                                post_url,
-                                crawl_date
-                            ])
-                            posts_saved += 1
+                for user_data in found_users:
+                    # Safely get username with None checks
+                    username = user_data.get('username') or user_data.get('user_id') or ''
+                    if not username or not isinstance(username, str):
+                        username = 'unknown_user'
+                    else:
+                        username = username.strip()
+                    
+                    # Handle different thread data structures with None checks
+                    threads = user_data.get('threads') or user_data.get('posts') or user_data.get('data') or []
+                    
+                    if isinstance(threads, list):
+                        for thread in threads:
+                            if isinstance(thread, dict):
+                                # Safely extract post data with None checks
+                                post_text = thread.get('text') or thread.get('content') or ''
+                                if post_text and isinstance(post_text, str):
+                                    post_text = post_text.strip()
+                                else:
+                                    post_text = ''
+                                
+                                timestamp = thread.get('published_on') or thread.get('timestamp') or ''
+                                if timestamp and isinstance(timestamp, str):
+                                    timestamp = timestamp.strip()
+                                else:
+                                    timestamp = ''
+                                
+                                post_url = thread.get('url') or thread.get('link') or ''
+                                if post_url and isinstance(post_url, str):
+                                    post_url = post_url.strip()
+                                else:
+                                    post_url = ''
+                            else:
+                                # Handle non-dict thread data
+                                post_text = str(thread).strip() if thread and str(thread).strip() else ''
+                                timestamp = ''
+                                post_url = ''
+                            
+                            crawl_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            
+                            # Only save if we have some content
+                            if post_text:
+                                writer.writerow([
+                                    username,
+                                    post_text,
+                                    timestamp,
+                                    post_url,
+                                    crawl_date
+                                ])
+                                posts_saved += 1
+        except Exception as e:
+            print(f"[ERROR] Error writing CSV file: {e}")
+            return {
+                "status": "error",
+                "message": f"Error writing user data to CSV: {str(e)}",
+                "data": None
+            }
         
         return {
             "status": "success",
@@ -445,8 +509,11 @@ def get_users_from_existing_data(usernames):
                 "successful_crawls": successful_crawls,
                 "failed_crawls": failed_crawls,
                 "total_posts": posts_saved,
-                "usernames": usernames,
-                "found_usernames": [u.get('username', u.get('user_id', '')) for u in found_users],
+                "usernames": [u for u in usernames if u and isinstance(u, str)],  # Filter out None usernames
+                "found_usernames": [
+                    u.get('username') or u.get('user_id') or 'unknown'
+                    for u in found_users
+                ],
                 "output_file": csv_file,
                 "source": "existing_data"
             }
@@ -1074,159 +1141,134 @@ def run_crawl_task(symptom_group):
         task_status["crawl_task_1"]["status"] = "error"
         task_status["crawl_task_1"]["message"] = f"Error: {str(e)}"
 
+def obfuscate_username(username):
+    """Simple username obfuscation for privacy protection"""
+    if not username:
+        return "user_unknown"
+    
+    # Create a hash of the username and take first 8 characters
+    hash_object = hashlib.md5(username.encode())
+    hash_hex = hash_object.hexdigest()[:8]
+    return f"user_{hash_hex}"
+
 @app.route('/view_user_history')
 def view_user_history():
-    """View user history data from CSV file"""
+    """View user history data - combines main_posts.csv with all_users_history_data.jsonl"""
     try:
-        csv_file = "data/user_his.csv"
+        print("[DEBUG] /view_user_history endpoint called")
         
+        # Check if user history CSV exists (created after crawling)
+        csv_file = "data/user_his.csv"
         if not os.path.exists(csv_file):
             return jsonify({
                 "status": "error",
-                "message": "No user history data found. Please crawl users first."
+                "message": "No user history data found. Please run 'Start User Crawl' first.",
+                "data": []
             })
         
-        # Read CSV data
-        df = pd.read_csv(csv_file)
+        # Load main_posts.csv for cross-reference
+        main_posts_df = pd.DataFrame()
+        if os.path.exists("data/main_posts.csv"):
+            main_posts_df = pd.read_csv("data/main_posts.csv")
+            print(f"[DEBUG] Loaded {len(main_posts_df)} records from main_posts.csv")
         
-        if df.empty:
-            return jsonify({
-                "status": "warning", 
-                "message": "User history file is empty."
-            })
+        # Load filtered posts if available
+        filtered_posts_df = pd.DataFrame()
+        if os.path.exists("data/filtered_posts.csv"):
+            filtered_posts_df = pd.read_csv("data/filtered_posts.csv")
+            print(f"[DEBUG] Loaded {len(filtered_posts_df)} filtered records")
         
-        # Convert to records for JSON response
-        data = df.to_dict('records')
+        # Use filtered posts if available, otherwise use main posts
+        reference_df = filtered_posts_df if not filtered_posts_df.empty else main_posts_df
         
-        return jsonify({
-            "status": "success",
-            "message": f"Found {len(data)} user history records",
-            "data": data,
-            "total_count": len(data),
-            "file_path": csv_file
-        })
-        
-    except Exception as e:
-        print(f"Error in view_user_history: {e}")
-        traceback.print_exc()
-        return jsonify({
-            "status": "error",
-            "message": f"Error reading user history: {str(e)}"
-        })
-
-@app.route('/download_user_history')
-def download_user_history():
-    """Download user history CSV file"""
-    try:
-        csv_file = "data/user_his.csv"
-        
-        if not os.path.exists(csv_file):
+        if reference_df.empty:
             return jsonify({
                 "status": "error",
-                "message": "No user history data found to download."
+                "message": "No main posts data found",
+                "data": []
             })
         
-        return send_file(csv_file, as_attachment=True, download_name="user_history.csv")
-        
-    except Exception as e:
-        print(f"Error in download_user_history: {e}")
-        return jsonify({
-            "status": "error", 
-            "message": f"Error downloading user history: {str(e)}"
-        })
-
-@app.route('/view_users_data')
-def view_users_data():
-    """View users data from JSONL file"""
-    try:
+        # Load all_users_history_data.jsonl for detailed posts
+        detailed_posts_by_user = {}
         jsonl_file = "data/all_users_history_data.jsonl"
+        if os.path.exists(jsonl_file):
+            try:
+                with open(jsonl_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        if line.strip():
+                            record = json.loads(line.strip())
+                            username = record.get('username')
+                            if username and 'threads' in record:
+                                detailed_posts_by_user[username] = record['threads']
+                print(f"[DEBUG] Loaded detailed posts for {len(detailed_posts_by_user)} users")
+            except Exception as e:
+                print(f"[ERROR] Error reading JSONL file: {e}")
         
-        if not os.path.exists(jsonl_file):
-            return jsonify({
-                "status": "error",
-                "message": "No users data found. User history file doesn't exist."
-            })
+        # Build response data by processing each unique user from reference posts
+        response_data = []
+        unique_users = reference_df['username'].dropna().unique()
         
-        # Read JSONL data and convert to flattened format for table display
-        users_data = []
-        total_posts = 0
-        
-        with open(jsonl_file, 'r', encoding='utf-8') as f:
-            for line_num, line in enumerate(f, 1):
-                line = line.strip()
-                if not line:
-                    continue
-                    
-                try:
-                    user_data = json.loads(line)
-                    username = user_data.get('username', f'User_{line_num}')
-                    threads = user_data.get('threads', [])
-                    
-                    # Create summary record for each user
-                    user_summary = {
-                        'username': username,
-                        'total_posts': len(threads),
-                        'latest_post': '',
-                        'oldest_post': '',
-                        'sample_post': ''
+        for username in unique_users:
+            if not username or not isinstance(username, str):
+                continue
+                
+            username = username.strip()
+            
+            # Get main posts for this user from main_posts.csv (ALWAYS from CSV)
+            user_main_posts = reference_df[reference_df['username'] == username]
+            main_posts_list = user_main_posts.to_dict('records')
+            
+            # Get detailed posts from JSONL (only for "View Details")
+            detailed_posts_list = detailed_posts_by_user.get(username, [])
+            
+            # Calculate risk metrics based on main posts
+            high_risk_posts = len(user_main_posts[user_main_posts['label'] == 1]) if 'label' in user_main_posts.columns else 0
+            suicide_risk = 1 if high_risk_posts > 0 else 0
+            risk_score = high_risk_posts / len(main_posts_list) if len(main_posts_list) > 0 else 0.0
+            
+            # Build user record - KEEP ORIGINAL USERNAME
+            user_record = {
+                'username': username,  # Keep original username
+                'suicide_risk': suicide_risk,
+                'risk_score': round(risk_score, 2),
+                'stats': {
+                    'total_main_posts': len(main_posts_list),
+                    'total_detailed_posts': len(detailed_posts_list),
+                    'high_risk_posts': high_risk_posts
+                },
+                # MAIN POSTS: Always from main_posts.csv (this is what shows by default)
+                'main_posts': main_posts_list,
+                # DETAILED POSTS: From all_users_history_data.jsonl (only shown when "View Details" clicked)
+                'detailed_posts': [
+                    {
+                        'post_text': post.get('text', 'N/A'),
+                        'timestamp': post.get('published_on', 'N/A'),
+                        'url': post.get('url', ''),
+                        'crawl_date': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }
-                    
-                    if threads:
-                        # Get latest and oldest posts based on timestamp if available
-                        posts_with_time = []
-                        for thread in threads:
-                            if isinstance(thread, dict):
-                                timestamp = thread.get('timestamp', 0)
-                                text = thread.get('text', '').strip()
-                                if text:
-                                    posts_with_time.append({
-                                        'timestamp': timestamp,
-                                        'text': text[:100] + '...' if len(text) > 100 else text,
-                                        'published_on': thread.get('published_on', '')
-                                    })
-                        
-                        if posts_with_time:
-                            # Sort by timestamp if available
-                            if any(p['timestamp'] for p in posts_with_time):
-                                posts_with_time.sort(key=lambda x: x['timestamp'], reverse=True)
-                                user_summary['latest_post'] = posts_with_time[0]['text']
-                                user_summary['oldest_post'] = posts_with_time[-1]['text']
-                            else:
-                                user_summary['latest_post'] = posts_with_time[0]['text']
-                                user_summary['oldest_post'] = posts_with_time[-1]['text']
-                            
-                            user_summary['sample_post'] = posts_with_time[0]['text']
-                    
-                    users_data.append(user_summary)
-                    total_posts += len(threads)
-                    
-                except json.JSONDecodeError as e:
-                    print(f"JSON decode error on line {line_num}: {e}")
-                    continue
+                    for post in detailed_posts_list
+                ]
+            }
+            
+            response_data.append(user_record)
         
-        if not users_data:
-            return jsonify({
-                "status": "warning",
-                "message": "No valid user data found in the file."
-            })
+        print(f"[DEBUG] Built response for {len(response_data)} users")
         
         return jsonify({
             "status": "success",
-            "message": f"Found {len(users_data)} users with {total_posts} total posts",
-            "data": users_data,
-            "total_count": len(users_data),
-            "total_posts": total_posts,
-            "data_type": "users_summary"
+            "message": f"Retrieved {len(response_data)} user records",
+            "data": response_data
         })
         
     except Exception as e:
-        print(f"Error in view_users_data: {e}")
+        print(f"[ERROR] Error in view_user_history: {e}")
         traceback.print_exc()
         return jsonify({
             "status": "error",
-            "message": f"Error reading users data: {str(e)}"
+            "message": f"Error reading user history: {str(e)}",
+            "data": []
         })
-
+    
 if __name__ == '__main__':
     #app.run(debug=True, host='0.0.0.0', port=5000)
     app.run(debug=True, port=5000)
