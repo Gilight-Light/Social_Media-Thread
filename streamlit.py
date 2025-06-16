@@ -269,8 +269,7 @@ st.markdown("""
 # Header
 st.markdown("""
 <div class="main-header">
-    <h1>🧠 Social Media Suicide Risk Analysis</h1>
-    <p>Phân tích ý định tự sát qua bài đăng Threads - Real-time Streaming Analysis</p>
+    <h1>🧠 REAL-TIME DETECTION OF DEPRESSION EXPRESSION ON THREADS POSTS</h1>
 </div>
 """, unsafe_allow_html=True)
 
@@ -493,7 +492,7 @@ if user_data_list and len(user_data_list) > 0:
     with col_high:
         st.markdown("""
         <div class="column-header high-risk-header">
-            🚨 NGƯỜI DÙNG CÓ NGUY CƠ CAO
+            🚨 Phát Hiện Biểu Hiện Trầm Cảm
         </div>
         """, unsafe_allow_html=True)
         
@@ -503,13 +502,12 @@ if user_data_list and len(user_data_list) > 0:
             if st.session_state.high_risk_users:
                 for user_data in st.session_state.high_risk_users:
                     display_user_card(user_data, col_high)
-            else:
-                st.info("Chưa có người dùng nguy cơ cao được phát hiện")
+
     
     with col_low:
         st.markdown("""
         <div class="column-header low-risk-header">
-            ✅ NGƯỜI DÙNG NGUY CƠ THẤP
+            ✅ Không Phát Hiện Biểu Hiện Trầm Cảm
         </div>
         """, unsafe_allow_html=True)
         
@@ -519,8 +517,7 @@ if user_data_list and len(user_data_list) > 0:
             if st.session_state.low_risk_users:
                 for user_data in st.session_state.low_risk_users:
                     display_user_card(user_data, col_low)
-            else:
-                st.info("Chưa có người dùng nguy cơ thấp được phát hiện")
+
     
     # Streaming logic
     if st.session_state.streaming_started and not st.session_state.streaming_completed:

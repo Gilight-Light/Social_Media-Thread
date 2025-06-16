@@ -3,7 +3,7 @@ import csv
 import os
 import time
 import sys
-from scrape_profile import scrape_profile
+from thread.scrape_profile import scrape_profile
 
 def crawl_users_by_keyword(user_input=None):
     """

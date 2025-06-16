@@ -2,7 +2,7 @@ import asyncio
 import csv
 import sys
 from pathlib import Path
-from scrape_thread import scrape_thread
+from thread.scrape_thread import scrape_thread
 from playwright.async_api import async_playwright
 
 def clean_text(text: str) -> str:

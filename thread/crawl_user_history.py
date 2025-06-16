@@ -13,7 +13,7 @@ def crawl_single_user_history(username):
         
         # Try to import scrape_profile
         try:
-            from scrape_profile import scrape_profile
+            from thread.scrape_profile import scrape_profile
             print(f"[DEBUG] Successfully imported scrape_profile")
         except ImportError as e:
             print(f"[ERROR] Cannot import scrape_profile: {e}")
@@ -116,7 +116,7 @@ def crawl_single_user_history(username):
 def test_scrape_profile():
     """Test the scrape_profile function"""
     try:
-        from scrape_profile import scrape_profile
+        from thread.scrape_profile import scrape_profile
         
         # Test with a simple user
         test_username = "threads"  # Official Threads account

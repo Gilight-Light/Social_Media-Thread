@@ -8,7 +8,7 @@ from playwright.sync_api import sync_playwright
 from nested_lookup import nested_lookup
 
 # Note: we'll also be using parse_thread function we wrote earlier:
-from scrape_thread import parse_thread
+from thread.scrape_thread import parse_thread
 
 def parse_profile(data: Dict) -> Dict:
     """Parse Threads profile JSON dataset for the most important fields"""
