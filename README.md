@@ -2,6 +2,19 @@
 
 A comprehensive system for crawling social media posts from Threads, analyzing mental health indicators, and providing real-time insights through interactive dashboards.
 
+## University:
+
+Faculty of Information Science and Engineering, University of Information Technology, VNU-HCM
+
+## Authors:
+
+| STT | Họ và Tên               | MSSV         | Vai trò         |
+| --- | ----------------------- | ------------ | --------------- |
+| 1   | **Phan Nguyễn Hải Yến** | **21521698** | **Nhóm trưởng** |
+| 2   | Lý Phi Lân              | 21520319     | Thành viên      |
+| 3   | Nguyễn Huy Hoàng        | 21522092     | Thành viên      |
+| 4   | Châu Trần Vỹ Linh       | 22520755     | Thành viên      |
+
 ## 🎯 Features
 
 - **🕷️ Automated Crawling**: Scrape Threads posts using Playwright with anti-detection
@@ -90,12 +103,12 @@ streamlit run streamlit.py &
 
 ## 🌐 Application Access
 
-| Service | URL | Credentials | Description |
-|---------|-----|-------------|-------------|
-| **Flask Dashboard** | http://localhost:5000 | - | Main control panel |
-| **Streamlit App** | http://localhost:8501 | - | Real-time analytics |
-| **Airflow Web UI** | http://localhost:8080 | admin/admin | Workflow management |
-| **Kafka UI** | http://localhost:8081 | - | Stream monitoring |
+| Service             | URL                   | Credentials | Description         |
+| ------------------- | --------------------- | ----------- | ------------------- |
+| **Flask Dashboard** | http://localhost:5000 | -           | Main control panel  |
+| **Streamlit App**   | http://localhost:8501 | -           | Real-time analytics |
+| **Airflow Web UI**  | http://localhost:8080 | admin/admin | Workflow management |
+| **Kafka UI**        | http://localhost:8081 | -           | Stream monitoring   |
 
 ## 📋 Prerequisites
 
@@ -113,12 +126,14 @@ streamlit run streamlit.py &
 ```
 
 **Key Features:**
+
 - 📈 **Data Status**: View current data statistics
 - 🔍 **Filter Posts**: Filter by symptom groups (depression, anxiety, insomnia)
 - 👥 **Crawl Users**: Extract user profiles from filtered posts
 - 📊 **View Results**: Analyze crawled data and download reports
 
 **Sample Workflow:**
+
 1. Upload your CSV data to `data/main_posts.csv`
 2. Click "Filter Posts" → Select symptom group
 3. Click "Start Users Crawl" → Monitor progress
@@ -131,12 +146,14 @@ streamlit run streamlit.py &
 ```
 
 **Features:**
+
 - 🔴 **Live Streaming**: Real-time user analysis
 - 🎯 **Risk Classification**: Automatic categorization (High/Low risk)
 - 📊 **Progress Tracking**: Live updates with progress bars
 - 🔍 **Detailed Analysis**: Expandable user cards with post analysis
 
 **How to Use:**
+
 1. Click "🚀 Bắt đầu Stream" to start analysis
 2. Watch real-time progress and classifications
 3. Expand user cards for detailed insights
@@ -149,6 +166,7 @@ streamlit run streamlit.py &
 ```
 
 **Automated Workflows:**
+
 - 🕰️ **Scheduled Crawling**: Every 6 hours
 - 📊 **Data Processing**: Automatic analysis pipeline
 - 🔄 **Error Handling**: Retry mechanisms and logging
@@ -156,6 +174,7 @@ streamlit run streamlit.py &
 ## 📊 Data Format
 
 ### Input Data (main_posts.csv)
+
 ```csv
 username,text,timestamp,url,symptom_group,keyword,label
 user123,"Feeling sad today...",2024-01-15 14:30,https://threads.net/@user123/post/123,mood_depressed,buồn,1
@@ -163,6 +182,7 @@ user456,"Can't sleep at 3am",2024-01-15 03:00,https://threads.net/@user456/post/
 ```
 
 ### Output Data Structure
+
 ```json
 {
   "username": "user123_***",
@@ -177,6 +197,7 @@ user456,"Can't sleep at 3am",2024-01-15 03:00,https://threads.net/@user456/post/
 ## ⚙️ Configuration
 
 ### Environment Variables
+
 ```bash
 # Create .env file
 cat > .env << EOF
@@ -189,21 +210,23 @@ EOF
 ```
 
 ### Docker Services
+
 ```yaml
 # Included services:
-- flask-app          # API server
-- streamlit-app      # Dashboard
-- airflow-webserver  # Workflow UI
-- airflow-scheduler  # Task scheduler
-- kafka              # Message streaming
-- zookeeper          # Kafka coordination
-- postgres           # Database
-- redis              # Caching
+- flask-app # API server
+- streamlit-app # Dashboard
+- airflow-webserver # Workflow UI
+- airflow-scheduler # Task scheduler
+- kafka # Message streaming
+- zookeeper # Kafka coordination
+- postgres # Database
+- redis # Caching
 ```
 
 ## 🔧 API Reference
 
 ### Flask Endpoints
+
 ```bash
 # Data Management
 GET  /                          # Dashboard home
@@ -222,6 +245,7 @@ GET  /task_status/<task_id>     # Task progress
 ```
 
 ### Streamlit Features
+
 - **Real-time Processing**: Live data analysis
 - **Interactive Filters**: Dynamic content filtering
 - **Export Functions**: CSV/JSON download
@@ -259,12 +283,14 @@ python thread/crawl_users_data.py --test
 ## 📈 Performance & Monitoring
 
 ### System Requirements
+
 - **CPU**: 4+ cores recommended
 - **RAM**: 8GB+ for full stack
 - **Storage**: 10GB+ for data
 - **Network**: Stable internet for crawling
 
 ### Monitoring Commands
+
 ```bash
 # Check service status
 docker-compose ps
@@ -278,6 +304,7 @@ docker stats
 ```
 
 ### Performance Tips
+
 - Use Docker for better resource management
 - Monitor Kafka lag for streaming performance
 - Set appropriate crawling delays to avoid rate limits
@@ -286,12 +313,14 @@ docker stats
 ## 🔒 Privacy & Security
 
 ### Data Protection
+
 - **Username Anonymization**: All usernames automatically masked
 - **Data Encryption**: Sensitive data hashed with MD5
 - **Access Control**: No external access to raw personal data
 - **GDPR Compliance**: Built-in privacy protection
 
 ### Security Features
+
 ```python
 # Automatic username masking
 def mask_username(username):
@@ -307,6 +336,7 @@ user_hash = hashlib.md5(username.encode()).hexdigest()[:8]
 ### Common Issues
 
 **1. Port Conflicts**
+
 ```bash
 # Change ports in docker-compose.yml
 ports:
@@ -315,6 +345,7 @@ ports:
 ```
 
 **2. Memory Issues**
+
 ```bash
 # Increase Docker memory
 docker-compose down
@@ -323,6 +354,7 @@ docker-compose up -d
 ```
 
 **3. Permission Issues**
+
 ```bash
 # Fix data directory permissions
 sudo chown -R $USER:$USER data/
@@ -330,6 +362,7 @@ chmod -R 755 data/
 ```
 
 **4. Kafka Connection Issues**
+
 ```bash
 # Restart Kafka services
 docker-compose restart kafka zookeeper
@@ -338,6 +371,7 @@ sleep 30
 ```
 
 ### Debug Mode
+
 ```bash
 # Enable debug logging
 export FLASK_DEBUG=1
@@ -349,6 +383,7 @@ streamlit run streamlit.py --logger.level=debug
 ```
 
 ### Health Checks
+
 ```bash
 # Test Flask API
 curl http://localhost:5000/api/system_info
@@ -400,12 +435,14 @@ MIT License - see [LICENSE](LICENSE) file for details.
 ## 📞 Support
 
 ### Getting Help
+
 - 📖 **Documentation**: Check this README
 - 🐛 **Issues**: Open GitHub issue
 - 💬 **Discussions**: Use GitHub Discussions
 - 📧 **Email**: [your-email@domain.com]
 
 ### Quick Links
+
 - 🔗 [Project Repository](https://github.com/your-username/social)
 - 📚 [API Documentation](docs/api.md)
 - 🎥 [Video Tutorial](https://youtube.com/watch?v=example)
