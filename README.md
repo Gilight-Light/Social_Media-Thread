@@ -8,12 +8,12 @@ Faculty of Information Science and Engineering, University of Information Techno
 
 ## Authors:
 
-| STT | Họ và Tên               | MSSV         | Vai trò         |
+| #   | Full Name               | Student ID   | Role            |
 | --- | ----------------------- | ------------ | --------------- |
-| 1   | **Phan Nguyễn Hải Yến** | **21521698** | **Nhóm trưởng** |
-| 2   | Lý Phi Lân              | 21520319     | Thành viên      |
-| 3   | Nguyễn Huy Hoàng        | 21522092     | Thành viên      |
-| 4   | Châu Trần Vỹ Linh       | 22520755     | Thành viên      |
+| 1   | **Phan Nguyễn Hải Yến** | **21521698** | **Team Leader** |
+| 2   | Lý Phi Lân              | 21520319     | Member          |
+| 3   | Nguyễn Huy Hoàng        | 21522092     | Member          |
+| 4   | Châu Trần Vỹ Linh       | 22520755     | Member          |
 
 ## 🎯 Features
 
